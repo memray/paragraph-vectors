@@ -18,8 +18,8 @@ import sys
 import csv
 import re
 
-input_file_path ='/Users/memray/Data/academic/MicrosoftAcademicGraph/mag_fos=ir_en.txt'
-output_file_path='../../data/doc2vec-pytorch_mag_fos=ir.csv'
+input_file_path = os.path.expanduser('~/Data/academic/MicrosoftAcademicGraph/mag_fos=ir_en.txt')
+output_file_path= '../../data/doc2vec-pytorch_mag_fos=ir.csv'
 
 print(os.getcwd())
 
