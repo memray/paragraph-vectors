@@ -191,4 +191,5 @@ def _print_progress(epoch_i, batch_i, num_batches):
 
 
 if __name__ == '__main__':
-    fire.Fire()
+    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 100 --batch_size 32 --context_size 4 --num_noise_words 5 --vec_dim 150 --lr 1e-4 --save_all true".split()
+    fire.Fire(start, args)

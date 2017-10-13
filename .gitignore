@@ -1,3 +1,9 @@
+# custom
+models/*
+/data/*
+/data/
+notebook/
+
 ### macOS ###
 *.DS_Store
 .AppleDouble
@@ -92,8 +98,3 @@ target/
 .venv
 venv/
 env/
-
-# custom
-data/*.csv
-!data/example.csv
-models/*.pth.tar
