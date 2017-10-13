@@ -3,6 +3,11 @@ models/*
 /data/*
 /data/
 notebook/
+/experiment/*
+/experiments/*
+experiments/
+rum20@crc
+
 
 ### macOS ###
 *.DS_Store

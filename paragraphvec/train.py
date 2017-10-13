@@ -10,7 +10,8 @@ from torch.optim import Adam
 from paragraphvec.data import load_dataset, NCEData
 from paragraphvec.loss import NegativeSampling
 from paragraphvec.models import DistributedMemory
-from paragraphvec.utils import MODELS_DIR, MODEL_NAME
+from paragraphvec.utils import *
+from paragraphvec.utils import _print_progress
 
 
 def start(data_file_name,
@@ -87,6 +88,8 @@ def start(data_file_name,
         num_workers)
     nce_data.start()
 
+    logger = init_logging('../experiments/experiments.{0}.id={1}.log'.format('doc2vec', time.strftime('%Y%m%d-%H%M%S', time.localtime(time.time()))))
+
     try:
         _run(data_file_name, dataset, nce_data.get_generator(), len(nce_data),
              nce_data.vocabulary_size(), context_size, num_noise_words, vec_dim,
@@ -118,14 +121,18 @@ def _run(data_file_name,
 
     cost_func = NegativeSampling()
     optimizer = Adam(params=model.parameters(), lr=lr)
+    logger = logging.getLogger(__name__)
+    progbar = Progbar(num_batches, logger)
 
     if torch.cuda.is_available():
         model.cuda()
-        print("Running on GPU")
+        logger.info("Running on GPU - CUDA")
+    else:
+        logger.info("Running on CPU")
 
-    print("Dataset comprised of {:d} documents.".format(len(dataset)))
-    print("Vocabulary size is {:d}.\n".format(vocabulary_size))
-    print("Training started.")
+    logger.info("Dataset comprised of {:d} documents.".format(len(dataset)))
+    logger.info("Vocabulary size is {:d}.\n".format(vocabulary_size))
+    logger.info("Training started.")
 
     best_loss = float_info.max
     prev_model_file_path = ""
@@ -135,22 +142,33 @@ def _run(data_file_name,
         loss = []
 
         for batch_i in range(num_batches):
+            current_milli_time = lambda: int(round(time.time() * 1000))
+            start_time = current_milli_time()
             batch = next(data_generator)
+            print('sampling time: %d ms' % round(current_milli_time() - start_time))
+
+            start_time = current_milli_time()
             x = model.forward(
                 batch.context_ids,
                 batch.doc_ids,
                 batch.target_noise_ids)
             x = cost_func.forward(x)
             loss.append(x.data[0])
+            print('forward time: %d s' % round(current_milli_time() - start_time))
+
+            start_time = current_milli_time()
             model.zero_grad()
             x.backward()
             optimizer.step()
-            _print_progress(epoch_i, batch_i, num_batches)
+            progbar.update(batch_i, )
+            # _print_progress(epoch_i, batch_i, num_batches)
+            print('backward time: %d s' % round(current_milli_time() - start_time))
 
         # end of epoch
         loss = torch.mean(torch.FloatTensor(loss))
         is_best_loss = loss < best_loss
         best_loss = min(loss, best_loss)
+        progbar.update(batch_i, [('loss', loss), ('best_loss', best_loss)])
 
         model_file_name = MODEL_NAME.format(
             data_file_name[:-4],
@@ -181,14 +199,7 @@ def _run(data_file_name,
             prev_model_file_path = model_file_path
 
         epoch_total_time = round(time.time() - epoch_start_time)
-        print(" ({:d}s) - loss: {:.4f}".format(epoch_total_time, loss))
-
-
-def _print_progress(epoch_i, batch_i, num_batches):
-    progress = round((batch_i + 1) / num_batches * 100)
-    print("\rEpoch {:d}".format(epoch_i + 1), end='')
-    stdout.write(" - {:d}%".format(progress))
-    stdout.flush()
+        logger.info(" ({:d}s) - loss: {:.4f}".format(epoch_total_time, loss))
 
 
 if __name__ == '__main__':
