@@ -60,6 +60,8 @@ def start(data_file_name,
         Distributed Memory, 'dbow' stands for Distributed Bag Of Words.
         Currently only the 'dm' version is implemented.
 
+        But according to [doc2vec paper](http://proceedings.mlr.press/v32/le14.pdf) and [empirical analysis](https://arxiv.org/pdf/1607.05368.pdf), 'dbow' is running better
+
     vec_combine_method: str, one of ('sum', 'concat'), default='sum'
         Method for combining paragraph and word vectors in the 'dm' model.
         Currently only the 'sum' operation is implemented.
@@ -88,7 +90,7 @@ def start(data_file_name,
         num_workers)
     nce_data.start()
 
-    logger = init_logging('../experiments/experiments.{0}.id={1}.log'.format('doc2vec', time.strftime('%Y%m%d-%H%M%S', time.localtime(time.time()))))
+    init_logging('../experiments/experiments.{0}.id={1}.log'.format('doc2vec', time.strftime('%Y%m%d-%H%M%S', time.localtime(time.time()))))
 
     try:
         _run(data_file_name, dataset, nce_data.get_generator(), len(nce_data),
@@ -97,7 +99,6 @@ def start(data_file_name,
              save_all)
     except KeyboardInterrupt:
         nce_data.stop()
-
 
 def _run(data_file_name,
          dataset,
@@ -113,6 +114,19 @@ def _run(data_file_name,
          model_ver,
          vec_combine_method,
          save_all):
+    '''
+    Averagely, the time consumption:
+    max_generated_batches = 5
+        CPU:
+            backward time: 600~650 ms
+            sampling time: 1 ms
+            forward time:  5~7 ms
+        GPU:
+            backward time: 3 ms
+            sampling time: 72 ms
+            forward time:  1~2 ms
+    Should rewrite sampling to speed up on GPU
+    '''
 
     model = DistributedMemory(
         vec_dim,
@@ -145,7 +159,7 @@ def _run(data_file_name,
             current_milli_time = lambda: int(round(time.time() * 1000))
             start_time = current_milli_time()
             batch = next(data_generator)
-            print('sampling time: %d ms' % round(current_milli_time() - start_time))
+            print('data-prepare time: %d ms' % round(current_milli_time() - start_time))
 
             start_time = current_milli_time()
             x = model.forward(
@@ -203,5 +217,5 @@ def _run(data_file_name,
 
 
 if __name__ == '__main__':
-    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 100 --batch_size 32 --context_size 4 --num_noise_words 5 --vec_dim 150 --lr 1e-4 --save_all true".split()
+    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 10 --batch_size 32 --context_size 4 --num_noise_words 5 --vec_dim 150 --lr 1e-4 --save_all true --max_generated_batches 100 --num_workers -1".split()
     fire.Fire(start, args)
