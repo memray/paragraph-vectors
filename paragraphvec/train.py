@@ -161,7 +161,7 @@ def _run(data_processor,
     progbar = Progbar(num_batches, batch_size=batch_size, total_examples = number_examples)
 
     for epoch_i in range(num_epochs):
-        epoch_start_time = current_milli_time()
+        epoch_start_time = time.time()
         loss = []
 
         for batch_i in range(num_batches):
