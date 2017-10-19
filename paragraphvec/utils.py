@@ -76,7 +76,7 @@ class Progbar(object):
 
         self.logger = logging.getLogger()
 
-    def update(self, current, values=[]):
+    def update(self, current_epoch, current, values=[]):
         '''
         @param current: index of current step
         @param values: list of tuples (name, value_for_last_step).
@@ -98,7 +98,10 @@ class Progbar(object):
             sys.stdout.write("\r")
 
             numdigits = int(np.floor(np.log10(self.target))) + 1
-            barstr = '%%%dd/%%%dd' % (numdigits, numdigits, ) + ' (%.2f%%)['
+
+            epoch_info = 'Epoch = %d - ' % current_epoch
+
+            barstr = epoch_info + '%%%dd/%%%dd' % (numdigits, numdigits, ) + ' (%.2f%%)['
             bar = barstr % (current, self.target, float(current)/float(self.target) * 100.0)
             prog = float(current)/self.target
             prog_width = int(self.width*prog)

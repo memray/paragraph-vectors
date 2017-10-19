@@ -186,14 +186,14 @@ def _run(data_processor,
             optimizer.step()
             print('backward time: %d ms' % round(current_milli_time() - start_time))
 
-            progbar.update(batch_i, )
+            progbar.update(epoch_i, batch_i, )
             # _print_progress(epoch_i, batch_i, num_batches)
 
         # end of epoch
         loss = torch.mean(torch.FloatTensor(loss))
         is_best_loss = loss < best_loss
         best_loss = min(loss, best_loss)
-        progbar.update(batch_i, [('loss', loss), ('best_loss', best_loss)])
+        progbar.update(epoch_i, batch_i, [('loss', loss), ('best_loss', best_loss)])
 
         model_file_name = MODEL_NAME.format(
             data_file_name[:-4],
