@@ -1,3 +1,4 @@
+import os
 import time
 from os import remove
 from os.path import join
@@ -94,7 +95,7 @@ def start(data_file_name,
 
     try:
         _run(data_file_name, dataset, nce_data.get_generator(), len(nce_data),
-             nce_data.vocabulary_size(), context_size, num_noise_words, vec_dim,
+             nce_data.vocabulary_size(), nce_data.number_examples, context_size, num_noise_words, vec_dim,
              num_epochs, batch_size, lr, model_ver, vec_combine_method,
              save_all)
     except KeyboardInterrupt:
@@ -105,6 +106,7 @@ def _run(data_file_name,
          data_generator,
          num_batches,
          vocabulary_size,
+         number_examples,
          context_size,
          num_noise_words,
          vec_dim,
@@ -126,6 +128,11 @@ def _run(data_file_name,
             sampling time: 72 ms
             forward time:  1~2 ms
     Should rewrite sampling to speed up on GPU
+
+    DocTag2Vec on CPU:
+        121882 words/s, 8 workers
+        processing one document time = 650~850 ms
+        training on 173403030 raw words (68590824 effective words) took 646.2s, 106138 effective words/s
     '''
 
     model = DistributedMemory(
@@ -135,8 +142,7 @@ def _run(data_file_name,
 
     cost_func = NegativeSampling()
     optimizer = Adam(params=model.parameters(), lr=lr)
-    logger = logging.getLogger(__name__)
-    progbar = Progbar(num_batches, logger)
+    logger = logging.getLogger('root')
 
     if torch.cuda.is_available():
         model.cuda()
@@ -151,12 +157,15 @@ def _run(data_file_name,
     best_loss = float_info.max
     prev_model_file_path = ""
 
+    current_milli_time = lambda: int(round(time.time() * 1000))
+
+    progbar = Progbar(num_batches, batch_size=batch_size, total_examples = number_examples)
+
     for epoch_i in range(num_epochs):
-        epoch_start_time = time.time()
+        epoch_start_time = current_milli_time
         loss = []
 
         for batch_i in range(num_batches):
-            current_milli_time = lambda: int(round(time.time() * 1000))
             start_time = current_milli_time()
             batch = next(data_generator)
             print('data-prepare time: %d ms' % round(current_milli_time() - start_time))
@@ -168,15 +177,16 @@ def _run(data_file_name,
                 batch.target_noise_ids)
             x = cost_func.forward(x)
             loss.append(x.data[0])
-            print('forward time: %d s' % round(current_milli_time() - start_time))
+            print('forward time: %d ms' % round(current_milli_time() - start_time))
 
             start_time = current_milli_time()
             model.zero_grad()
             x.backward()
             optimizer.step()
+            print('backward time: %d ms' % round(current_milli_time() - start_time))
+
             progbar.update(batch_i, )
             # _print_progress(epoch_i, batch_i, num_batches)
-            print('backward time: %d s' % round(current_milli_time() - start_time))
 
         # end of epoch
         loss = torch.mean(torch.FloatTensor(loss))
@@ -196,6 +206,8 @@ def _run(data_file_name,
             epoch_i + 1,
             loss)
         model_file_path = join(MODELS_DIR, model_file_name)
+        if not os.path.exists(MODELS_DIR):
+            os.makedirs(MODELS_DIR)
         state = {
             'epoch': epoch_i + 1,
             'model_state_dict': model.state_dict(),
@@ -217,5 +229,5 @@ def _run(data_file_name,
 
 
 if __name__ == '__main__':
-    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 10 --batch_size 32 --context_size 4 --num_noise_words 5 --vec_dim 150 --lr 1e-4 --save_all true --max_generated_batches 100 --num_workers -1".split()
+    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 10 --batch_size 128 --context_size 5 --num_noise_words 5 --vec_dim 300 --lr 1e-4 --save_all true --max_generated_batches 10000 --num_workers -1".split()
     fire.Fire(start, args)

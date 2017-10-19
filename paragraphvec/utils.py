@@ -3,12 +3,13 @@ import numpy as np
 import time
 import sys,logging
 
+logger = logging.getLogger('root')
+
 DATA_DIR = join(dirname(dirname(__file__)), 'data')
 MODELS_DIR = join(dirname(dirname(__file__)), 'models')
 MODEL_NAME = ("{:s}_model.{:s}.{:s}_contextsize.{:d}_numnoisewords.{:d}"
               "_vecdim.{:d}_batchsize.{:d}_lr.{:f}_epoch.{:d}_loss.{:f}"
               ".pth.tar")
-
 
 class LoggerWriter:
     def __init__(self, level):
@@ -38,7 +39,7 @@ def init_logging(logfile_path):
 
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
-    # fh.setLevel(logging.INFO)
+    fh.setLevel(logging.INFO)
     ch.setLevel(logging.INFO)
     logging.getLogger().addHandler(ch)
     logging.getLogger().addHandler(fh)
@@ -53,7 +54,7 @@ def _print_progress(epoch_i, batch_i, num_batches):
     sys.stdout.flush()
 
 class Progbar(object):
-    def __init__(self, target, logger, width=30, verbose=1):
+    def __init__(self, target, width=30, batch_size = None, total_examples = None, verbose=1):
         '''
             @param target: total number of steps expected
         '''
@@ -66,7 +67,11 @@ class Progbar(object):
         self.seen_so_far = 0
         self.verbose = verbose
 
-        self.logger = logger
+        self.batch_size = batch_size
+        self.last_batch = 0
+        self.total_examples = total_examples
+        self.start_time = time.time() - 0.00001
+        self.last_time  = self.start_time
 
     def update(self, current, values=[]):
         '''
@@ -123,6 +128,15 @@ class Progbar(object):
                 else:
                     info += ' - %s: %.4f' % (k, self.sum_values[k][0] / max(1, self.sum_values[k][1]))
 
+            # update progress stats
+            trained_word_count = self.batch_size * current  # only words in vocab & sampled
+            new_trained_word_count = self.batch_size * (current - self.last_batch)  # only words in vocab & sampled
+            current_time =time.time()
+            elapsed = current_time - self.last_time
+            info += " new processed %d words, %.0f words/s" % (new_trained_word_count, new_trained_word_count / elapsed)
+            self.last_time = current_time
+
+
             self.total_width += len(info)
             if prev_total_width > self.total_width:
                 info += ((prev_total_width-self.total_width) * " ")
@@ -130,10 +144,11 @@ class Progbar(object):
             # sys.stdout.write(info)
             # sys.stdout.flush()
 
-            self.logger.info(info)
+            logger.info(info)
 
             if current >= self.target:
                 sys.stdout.write("\n")
+
 
         if self.verbose == 2:
             if current >= self.target:
@@ -141,7 +156,7 @@ class Progbar(object):
                 for k in self.unique_values:
                     info += ' - %s: %.4f' % (k, self.sum_values[k][0] / max(1, self.sum_values[k][1]))
                 # sys.stdout.write(info + "\n")
-                self.logger.info(info + "\n")
+                logger.info(info + "\n")
 
     def add(self, n, values=[]):
         self.update(self.seen_so_far + n, values)

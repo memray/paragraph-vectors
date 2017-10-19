@@ -9,9 +9,11 @@ import numpy as np
 import torch
 from numpy.random import choice
 from torchtext.data import Field, TabularDataset
+import logging
 
 from paragraphvec.utils import DATA_DIR
 
+logger = logging.getLogger('root')
 
 def load_dataset(file_name):
     """Loads contents from a file in the *data* directory into a
@@ -89,12 +91,17 @@ class NCEData(object):
         if self.num_workers is None:
             self.num_workers = 1
 
+        logger.info('Actual num_workers = %d' % self.num_workers)
+
         self._generator = _NCEGenerator(
             dataset,
             batch_size,
             context_size,
             num_noise_words,
             _NCEGeneratorState(context_size))
+
+        self.number_examples = self._generator.num_examples()
+        self.number_documents = len(self._generator.dataset)
 
         self._queue = None
         self._stop_event = None
@@ -193,6 +200,9 @@ class _NCEGenerator(object):
     def __len__(self):
         num_examples = sum(self._num_examples_in_doc(d) for d in self.dataset)
         return ceil(num_examples / self.batch_size)
+
+    def num_examples(self):
+        return sum(self._num_examples_in_doc(d) for d in self.dataset)
 
     def vocabulary_size(self):
         return len(self._vocabulary) - 1
