@@ -92,6 +92,7 @@ class NCEData(object):
         if self.num_workers is None:
             self.num_workers = 1
 
+        # initialize one generator with a shared state object
         self._generator = _NCEGenerator(
             dataset,
             batch_size,
@@ -216,6 +217,10 @@ class _NCEGenerator(object):
     def next(self):
         """Updates state for the next process in a process-safe manner
         and generates the current batch."""
+
+        # Get the starting point (index of doc and pos) to generate
+        # !!! Here requires the state is synchronized, is it the bottleneck?
+        start_time = current_milli_time()
         prev_doc_id, prev_in_doc_pos = self._state.update_state(
             self.dataset,
             self.batch_size,
@@ -224,6 +229,8 @@ class _NCEGenerator(object):
 
         # generate the actual batch
         batch = _NCEBatch()
+        current_time = current_milli_time()
+        print('\tGet next doc&pos: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
 
         start_time = current_milli_time()
 
@@ -242,12 +249,12 @@ class _NCEGenerator(object):
                 prev_in_doc_pos = self.context_size
 
         current_time = current_milli_time()
-        print('generating batch time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
+        print('\tGenerating batch time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
 
         start_time = current_milli_time()
         torch_batch = self._batch_to_torch_data(batch)
         current_time = current_milli_time()
-        print('transfer batch to Torch: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
+        print('\tTransfer batch to Torch: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
 
         return torch_batch
 
@@ -302,7 +309,10 @@ class _NCEGeneratorState(object):
     def __init__(self, context_size):
         # use raw values because both indices have
         # to manually be locked together
+        # 'i' indicates a signed integer. These shared objects will be process and thread-safe.
+        # initialize one new value for doc_id
         self._doc_id = multiprocessing.RawValue('i', 0)
+        # initialize one new value for doc_pos (the first position is at pos=context_size)
         self._in_doc_pos = multiprocessing.RawValue('i', context_size)
         self._lock = multiprocessing.Lock()
 

@@ -134,6 +134,15 @@ def _run(data_processor,
         121882 words/s, 8 workers
         processing one document time = 650~850 ms
         training on 173403030 raw words (68590824 effective words) took 646.2s, 106138 effective words/s
+
+    Data Generation, the major bottleneck is still generation, maybe due to the lock:
+        GPU (Desktop)
+            generating batch time: 1200~2001 ms, (1508425387839, 1508425389840)
+            transfer batch to Torch: 1 ms, (1508425389840, 1508425389841)
+        CPU (Mac)
+            generating batch time: 1200~1527 ms, (1508424953768, 1508424955295)
+            transfer batch to Torch: 1 ms, (1508424955295, 1508424955296)
+
     '''
 
     model = DistributedMemory(
