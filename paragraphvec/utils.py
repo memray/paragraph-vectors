@@ -3,8 +3,6 @@ import numpy as np
 import time
 import sys,logging
 
-logger = logging.getLogger('root')
-
 DATA_DIR = join(dirname(dirname(__file__)), 'data')
 MODELS_DIR = join(dirname(dirname(__file__)), 'models')
 MODEL_NAME = ("{:s}_model.{:s}.{:s}_contextsize.{:d}_numnoisewords.{:d}"
@@ -73,6 +71,8 @@ class Progbar(object):
         self.start_time = time.time() - 0.00001
         self.last_time  = self.start_time
 
+        self.logger = logging.getLogger()
+
     def update(self, current, values=[]):
         '''
         @param current: index of current step
@@ -135,6 +135,7 @@ class Progbar(object):
             elapsed = current_time - self.last_time
             info += " new processed %d words, %.0f words/s" % (new_trained_word_count, new_trained_word_count / elapsed)
             self.last_time = current_time
+            self.last_batch = current
 
 
             self.total_width += len(info)
@@ -144,7 +145,7 @@ class Progbar(object):
             # sys.stdout.write(info)
             # sys.stdout.flush()
 
-            logger.info(info)
+            self.logger.info(info)
 
             if current >= self.target:
                 sys.stdout.write("\n")
@@ -156,7 +157,7 @@ class Progbar(object):
                 for k in self.unique_values:
                     info += ' - %s: %.4f' % (k, self.sum_values[k][0] / max(1, self.sum_values[k][1]))
                 # sys.stdout.write(info + "\n")
-                logger.info(info + "\n")
+                self.logger.info(info + "\n")
 
     def add(self, n, values=[]):
         self.update(self.seen_so_far + n, values)

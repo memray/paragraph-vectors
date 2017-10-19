@@ -81,6 +81,8 @@ def start(data_file_name,
     assert model_ver in ('dm', 'dbow')
     assert vec_combine_method in ('sum', 'concat')
 
+    init_logging('../experiments/experiments.{0}.id={1}.log'.format('doc2vec', time.strftime('%Y%m%d-%H%M%S', time.localtime(time.time()))))
+
     dataset = load_dataset(data_file_name)
     nce_data = NCEData(
         dataset,
@@ -90,8 +92,6 @@ def start(data_file_name,
         max_generated_batches,
         num_workers)
     nce_data.start()
-
-    init_logging('../experiments/experiments.{0}.id={1}.log'.format('doc2vec', time.strftime('%Y%m%d-%H%M%S', time.localtime(time.time()))))
 
     try:
         _run(data_file_name, dataset, nce_data.get_generator(), len(nce_data),
@@ -229,5 +229,5 @@ def _run(data_file_name,
 
 
 if __name__ == '__main__':
-    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 10 --batch_size 128 --context_size 5 --num_noise_words 5 --vec_dim 300 --lr 1e-4 --save_all true --max_generated_batches 10000 --num_workers -1".split()
+    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 10 --batch_size 512 --context_size 5 --num_noise_words 5 --vec_dim 300 --lr 1e-4 --save_all true --max_generated_batches 5120 --num_workers -1".split()
     fire.Fire(start, args)

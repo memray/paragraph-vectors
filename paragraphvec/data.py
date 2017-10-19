@@ -13,7 +13,7 @@ import logging
 
 from paragraphvec.utils import DATA_DIR
 
-logger = logging.getLogger('root')
+logger = logging.getLogger()
 
 def load_dataset(file_name):
     """Loads contents from a file in the *data* directory into a
@@ -91,8 +91,6 @@ class NCEData(object):
         if self.num_workers is None:
             self.num_workers = 1
 
-        logger.info('Actual num_workers = %d' % self.num_workers)
-
         self._generator = _NCEGenerator(
             dataset,
             batch_size,
@@ -102,6 +100,12 @@ class NCEData(object):
 
         self.number_examples = self._generator.num_examples()
         self.number_documents = len(self._generator.dataset)
+
+
+        logger.info('Actual num_workers = %d' % self.num_workers)
+        logger.info('number_examples = %d' % self.number_examples)
+        logger.info('number_documents = %d' % self.number_documents)
+
 
         self._queue = None
         self._stop_event = None
