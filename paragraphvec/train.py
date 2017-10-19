@@ -94,14 +94,15 @@ def start(data_file_name,
     nce_data.start()
 
     try:
-        _run(data_file_name, dataset, nce_data.get_generator(), len(nce_data),
+        _run(nce_data, data_file_name, dataset, nce_data.get_generator(), len(nce_data),
              nce_data.vocabulary_size(), nce_data.number_examples, context_size, num_noise_words, vec_dim,
              num_epochs, batch_size, lr, model_ver, vec_combine_method,
              save_all)
     except KeyboardInterrupt:
         nce_data.stop()
 
-def _run(data_file_name,
+def _run(data_processor,
+         data_file_name,
          dataset,
          data_generator,
          num_batches,
@@ -157,18 +158,18 @@ def _run(data_file_name,
     best_loss = float_info.max
     prev_model_file_path = ""
 
-    current_milli_time = lambda: int(round(time.time() * 1000))
-
     progbar = Progbar(num_batches, batch_size=batch_size, total_examples = number_examples)
 
     for epoch_i in range(num_epochs):
-        epoch_start_time = current_milli_time
+        epoch_start_time = current_milli_time()
         loss = []
 
         for batch_i in range(num_batches):
             start_time = current_milli_time()
+            logger.info('current queue length = %d' % data_processor._queue.qsize())
             batch = next(data_generator)
-            print('data-prepare time: %d ms' % round(current_milli_time() - start_time))
+            current_time = current_milli_time()
+            print('data-prepare time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
 
             start_time = current_milli_time()
             x = model.forward(

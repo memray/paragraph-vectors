@@ -10,6 +10,7 @@ import torch
 from numpy.random import choice
 from torchtext.data import Field, TabularDataset
 import logging
+from paragraphvec.utils import current_milli_time
 
 from paragraphvec.utils import DATA_DIR
 
@@ -131,6 +132,7 @@ class NCEData(object):
     def _parallel_task(self):
         while not self._stop_event.is_set():
             try:
+                # producer generates a new batch and pop it into queue
                 batch = self._generator.next()
                 # queue blocks a call to put() until a free slot is available
                 self._queue.put(batch)
@@ -223,6 +225,8 @@ class _NCEGenerator(object):
         # generate the actual batch
         batch = _NCEBatch()
 
+        start_time = current_milli_time()
+
         while len(batch) < self.batch_size:
             if prev_doc_id == len(self.dataset):
                 # last document exhausted
@@ -237,7 +241,15 @@ class _NCEGenerator(object):
                 prev_doc_id += 1
                 prev_in_doc_pos = self.context_size
 
-        return self._batch_to_torch_data(batch)
+        current_time = current_milli_time()
+        print('generating batch time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
+
+        start_time = current_milli_time()
+        torch_batch = self._batch_to_torch_data(batch)
+        current_time = current_milli_time()
+        print('transfer batch to Torch: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
+
+        return torch_batch
 
     def _num_examples_in_doc(self, doc, in_doc_pos=None):
         if in_doc_pos is not None:
@@ -263,6 +275,7 @@ class _NCEGenerator(object):
 
         # sample from the noise distribution
         current_noise = self._sample_noise()
+        # the index 0 is target (central) word
         current_noise.insert(0, self._word_to_index(doc[in_doc_pos]))
         batch.target_noise_ids.append(current_noise)
 

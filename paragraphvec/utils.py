@@ -9,6 +9,9 @@ MODEL_NAME = ("{:s}_model.{:s}.{:s}_contextsize.{:d}_numnoisewords.{:d}"
               "_vecdim.{:d}_batchsize.{:d}_lr.{:f}_epoch.{:d}_loss.{:f}"
               ".pth.tar")
 
+def current_milli_time():
+    return int(round(time.time() * 1000))
+
 class LoggerWriter:
     def __init__(self, level):
         # self.level is really like using log.debug(message)
