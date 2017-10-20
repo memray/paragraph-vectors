@@ -139,6 +139,8 @@ def _run(data_processor,
         GPU (Desktop)
             generating batch time: 1200~2001 ms, (1508425387839, 1508425389840)
             transfer batch to Torch: 1 ms, (1508425389840, 1508425389841)
+            #worker = 1: 300~600 words/s
+            #worker = 8: 600~4000 words/s (around 2500 often)
         CPU (Mac)
             generating batch time: 1200~1527 ms, (1508424953768, 1508424955295)
             transfer batch to Torch: 1 ms, (1508424955295, 1508424955296)
@@ -239,5 +241,5 @@ def _run(data_processor,
 
 
 if __name__ == '__main__':
-    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 10 --batch_size 512 --context_size 5 --num_noise_words 5 --vec_dim 300 --lr 1e-4 --save_all true --max_generated_batches 5120 --num_workers -1".split()
+    args = "--data_file_name 'doc2vec-pytorch_mag_fos=ir.csv' --num_epochs 10 --batch_size 256 --context_size 5 --num_noise_words 5 --vec_dim 300 --lr 1e-4 --save_all true --max_generated_batches 5120 --num_workers -1".split()
     fire.Fire(start, args)
