@@ -73,6 +73,8 @@ class Progbar(object):
         self.total_examples = total_examples
         self.start_time = time.time() - 0.00001
         self.last_time  = self.start_time
+        self.report_delay = 10
+        self.last_report  = self.start_time
 
         self.logger = logging.getLogger()
 
@@ -135,13 +137,16 @@ class Progbar(object):
                     info += ' - %s: %.4f' % (k, self.sum_values[k][0] / max(1, self.sum_values[k][1]))
 
             # update progress stats
-            trained_word_count = self.batch_size * current  # only words in vocab & sampled
-            new_trained_word_count = self.batch_size * (current - self.last_batch)  # only words in vocab & sampled
-            current_time =time.time()
-            elapsed = current_time - self.last_time
-            info += " new processed %d words, %.0f words/s" % (new_trained_word_count, new_trained_word_count / elapsed)
-            self.last_time = current_time
-            self.last_batch = current
+            current_time = time.time()
+            elapsed = current_time - self.last_report
+            if elapsed > self.report_delay:
+                trained_word_count = self.batch_size * current  # only words in vocab & sampled
+                new_trained_word_count = self.batch_size * (current - self.last_batch)  # only words in vocab & sampled
+
+                info += " - new processed %d words, %.0f words/s" % (new_trained_word_count, new_trained_word_count / elapsed)
+                self.last_time   = current_time
+                self.last_report = current_time
+                self.last_batch  = current
 
 
             self.total_width += len(info)

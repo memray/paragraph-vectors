@@ -141,6 +141,7 @@ def _run(data_processor,
             transfer batch to Torch: 1 ms, (1508425389840, 1508425389841)
             #worker = 1: 300~600 words/s
             #worker = 8: 600~4000 words/s (around 2500 often)
+            After changing to torch.sampler, getting worse, data-prepare time is not stable
         CPU (Mac)
             #worker = 8:
                 generating batch time: 1200~1527 ms, (1508424953768, 1508424955295)
@@ -186,7 +187,7 @@ def _run(data_processor,
             start_time = current_milli_time()
             batch = next(data_generator)
             current_time = current_milli_time()
-            print('data-prepare time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
+            print('data-prepare time: %d ms' % (round(current_time - start_time)))
 
             start_time = current_milli_time()
             x = model.forward(
