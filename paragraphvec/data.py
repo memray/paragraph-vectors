@@ -140,7 +140,7 @@ class NCEData(object):
             except KeyboardInterrupt:
                 self._stop_event.set()
 
-    def get_generator(self):
+    def get_batch(self):
         """Returns a generator that yields batches of data."""
         while self._is_running():
             yield self._queue.get()
@@ -189,6 +189,38 @@ class _NCEGenerator(object):
         self._init_noise_distribution()
         self._state = state
 
+    def make_cum_table(self, power=0.75, domain=2**31 - 1):
+        """
+        Create a cumulative-distribution table using stored vocabulary word counts for
+        drawing random words in the negative-sampling training routines.
+
+        To draw a word index, choose a random integer up to the maximum value in the
+        table (cum_table[-1]), then finding that integer's sorted insertion point
+        (as if by bisect_left or ndarray.searchsorted()). That insertion point is the
+        drawn index, coming up in proportion equal to the increment at that slot.
+
+        Called internally from 'build_vocab()'.
+        """
+        vocab_size = len(self._vocabulary)
+        self.cum_table = np.multiarray.zeros(vocab_size, dtype=np.uint32)
+        # compute sum of all power (Z in paper)
+        train_words_pow = float(sum([self._vocabulary[word].count**power for word in self._vocabulary]))
+        cumulative = 0.0
+        for word_index in range(vocab_size):
+            cumulative += self._vocabulary[self.wv.index2word[word_index]].count**power
+            self.cum_table[word_index] = round(cumulative / train_words_pow * domain)
+        if len(self.cum_table) > 0:
+            assert self.cum_table[-1] == domain
+
+        # if model.negative:
+        #     # use this word (label = 1) + `negative` other random words not from this sentence (label = 0)
+        #     word_indices = [predict_word.index]
+        #     while len(word_indices) < model.negative + 1:
+        #         # key part of speed up sampling
+        #         w = model.cum_table.searchsorted(model.random.randint(model.cum_table[-1]))
+        #         if w != predict_word.index:
+        #             word_indices.append(w)
+
     def _init_noise_distribution(self):
         # we use a unigram distribution raised to the 3/4rd power,
         # as proposed by T. Mikolov et al. in Distributed Representations
@@ -201,8 +233,31 @@ class _NCEGenerator(object):
         probs = np.power(probs, 0.75)
         probs /= np.sum(probs)
 
-        self._sample_noise = lambda: choice(
-            probs.shape[0], self.num_noise_words, p=probs).tolist()
+        '''
+        https://github.com/numpy/numpy/issues/7543
+        numpy.random.choice() is very expensive:
+            >>> %timeit -n 1 -r 1 [np.random.choice(50, 5, p=probs) for x in range(10000)]
+                1 loop, best of 1: 331 ms per loop
+            >>> %timeit -n 1 -r 1 [np.random.choice(50, 5, p=probs, replace=False) for x in range(10000)]
+                1 loop, best of 1: 684 ms per loop
+        numpy.random.multinomial() is cheaper:
+            >>> %timeit -n 1 -r 1 [np.random.multinomial(1, probs).argmax() for x in range(10000)]
+                1 loop, best of 1: 63.6 ms per loop
+            >>> %timeit -n 1 -r 1 [np.random.multinomial(1, probs).argmax() for x in range(50000)]
+                1 loop, best of 1: 279 ms per loop
+        torch.utils.data.sampler is much better
+            >>> %timeit -n 1 -r 1 [i for i in torch_sampler.WeightedRandomSampler(probs, 10000)]
+                1 loop, best of 1: 5.3 ms per loop
+            >>> %timeit -n 1 -r 1 [[i for i in torch_sampler.WeightedRandomSampler(probs, 5)]  for x in range(10000)]
+                1 loop, best of 1: 135 ms per loop
+        '''
+        sampler_name = 'pytorch'
+        if sampler_name == 'numpy':
+            self._sample_noise = lambda: choice(
+                probs.shape[0], self.num_noise_words, p=probs).tolist()
+        elif sampler_name == 'pytorch':
+            self._sample_noise = lambda: list(torch.utils.data.sampler.WeightedRandomSampler(
+                probs, self.num_noise_words))
 
     def __len__(self):
         num_examples = sum(self._num_examples_in_doc(d) for d in self.dataset)
@@ -219,42 +274,47 @@ class _NCEGenerator(object):
         and generates the current batch."""
 
         # Get the starting point (index of doc and pos) to generate
-        # !!! Here requires the state is synchronized, is it the bottleneck?
-        start_time = current_milli_time()
+        # Though here requires the state is synchronized, but only takes 1ms
         prev_doc_id, prev_in_doc_pos = self._state.update_state(
             self.dataset,
             self.batch_size,
             self.context_size,
             self._num_examples_in_doc)
 
+
+        # takes around 1200~1500ms
         # generate the actual batch
         batch = _NCEBatch()
-        current_time = current_milli_time()
-        print('\tGet next doc&pos: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
 
-        start_time = current_milli_time()
+        # start_batch_time = current_milli_time()
+        # start_document_time = current_milli_time()
 
         while len(batch) < self.batch_size:
             if prev_doc_id == len(self.dataset):
                 # last document exhausted
                 return self._batch_to_torch_data(batch)
+
             if prev_in_doc_pos <= (len(self.dataset[prev_doc_id].text) - 1
                                    - self.context_size):
+
+                # start_time = current_milli_time()
                 # more examples in the current document
                 self._add_example_to_batch(prev_doc_id, prev_in_doc_pos, batch)
                 prev_in_doc_pos += 1
+
+                # current_time = current_milli_time()
+                # print('\tGenerating one example time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
             else:
                 # go to the next document
                 prev_doc_id += 1
                 prev_in_doc_pos = self.context_size
+                # print('\tGenerating one document time: %d ms, (%d, %d)' % (round(current_time - start_document_time), start_document_time, current_time))
+                # start_document_time = current_milli_time()
 
-        current_time = current_milli_time()
-        print('\tGenerating batch time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
+        # current_time = current_milli_time()
+        # print('\tGenerating one batch time: %d ms, (%d, %d)' % (round(current_time - start_batch_time), start_batch_time, current_time))
 
-        start_time = current_milli_time()
         torch_batch = self._batch_to_torch_data(batch)
-        current_time = current_milli_time()
-        print('\tTransfer batch to Torch: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))
 
         return torch_batch
 
@@ -271,6 +331,8 @@ class _NCEGenerator(object):
         return 0
 
     def _add_example_to_batch(self, doc_id, in_doc_pos, batch):
+        start_context_time = current_milli_time()
+
         doc = self.dataset[doc_id].text
         batch.doc_ids.append(doc_id)
 
@@ -280,11 +342,18 @@ class _NCEGenerator(object):
                 current_context.append(self._word_to_index(doc[in_doc_pos - i]))
         batch.context_ids.append(current_context)
 
-        # sample from the noise distribution
+        start_sample_time = current_milli_time()
+
+        # Negative Sample: sample from the noise distribution, is the most time-consuming part, 99+% time of processing data
         current_noise = self._sample_noise()
         # the index 0 is target (central) word
-        current_noise.insert(0, self._word_to_index(doc[in_doc_pos]))
+        # current_noise.insert(0, self._word_to_index(doc[in_doc_pos]))
+        current_noise = [self._word_to_index(doc[in_doc_pos])] + current_noise
         batch.target_noise_ids.append(current_noise)
+
+        # current_time = current_milli_time()
+        # example_time = round(current_time - start_context_time)
+        # print('\tGenerating one example time: %d ms, scan=%.2f%%, sampling=%.2f%%)' % (example_time, float(start_sample_time-start_context_time)/example_time * 100.0, float(current_time-start_sample_time)/example_time * 100.0))
 
     def _word_to_index(self, word):
         return self._vocabulary.stoi[word] - 1

@@ -94,7 +94,7 @@ def start(data_file_name,
     nce_data.start()
 
     try:
-        _run(nce_data, data_file_name, dataset, nce_data.get_generator(), len(nce_data),
+        _run(nce_data, data_file_name, dataset, nce_data.get_batch(), len(nce_data),
              nce_data.vocabulary_size(), nce_data.number_examples, context_size, num_noise_words, vec_dim,
              num_epochs, batch_size, lr, model_ver, vec_combine_method,
              save_all)
@@ -142,8 +142,15 @@ def _run(data_processor,
             #worker = 1: 300~600 words/s
             #worker = 8: 600~4000 words/s (around 2500 often)
         CPU (Mac)
-            generating batch time: 1200~1527 ms, (1508424953768, 1508424955295)
-            transfer batch to Torch: 1 ms, (1508424955295, 1508424955296)
+            #worker = 8:
+                generating batch time: 1200~1527 ms, (1508424953768, 1508424955295)
+                transfer batch to Torch: 1 ms, (1508424955295, 1508424955296)
+                Generating one example time: 2~5 ms, (1508458881118, 1508458881122)
+                Generating one document time: 50~400 ms, (1508458881118, 1508458881122)
+                Generating one batch time: 650~700 ms, (1508458880690, 1508458881122)
+            After changing to torch.sampler
+                Generating one example time: 4~7 ms
+                Generating one batch time: 900~1200 ms
 
     '''
 
@@ -177,7 +184,6 @@ def _run(data_processor,
 
         for batch_i in range(num_batches):
             start_time = current_milli_time()
-            logger.info('current queue length = %d' % data_processor._queue.qsize())
             batch = next(data_generator)
             current_time = current_milli_time()
             print('data-prepare time: %d ms, (%d, %d)' % (round(current_time - start_time), start_time, current_time))

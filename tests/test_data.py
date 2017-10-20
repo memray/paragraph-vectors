@@ -26,7 +26,7 @@ class NCEDataTest(TestCase):
             num_workers=1)
         num_batches = len(nce_data)
         nce_data.start()
-        nce_generator = nce_data.get_generator()
+        nce_generator = nce_data.get_batch()
 
         total = 0
         for _ in range(num_batches):
@@ -45,7 +45,7 @@ class NCEDataTest(TestCase):
             num_workers=1)
         num_batches = len(nce_data)
         nce_data.start()
-        nce_generator = nce_data.get_generator()
+        nce_generator = nce_data.get_batch()
 
         iter0_targets = []
         for _ in range(num_batches):
@@ -72,7 +72,7 @@ class NCEDataTest(TestCase):
             num_workers=1)
         num_batches = len(nce_data)
         nce_data.start()
-        nce_generator = nce_data.get_generator()
+        nce_generator = nce_data.get_batch()
 
         targets0 = []
         for _ in range(num_batches):
@@ -90,7 +90,7 @@ class NCEDataTest(TestCase):
             num_workers=1)
         num_batches = len(nce_data)
         nce_data.start()
-        nce_generator = nce_data.get_generator()
+        nce_generator = nce_data.get_batch()
 
         targets1 = []
         for _ in range(num_batches):
@@ -111,7 +111,7 @@ class NCEDataTest(TestCase):
             max_size=1,
             num_workers=1)
         nce_data.start()
-        nce_generator = nce_data.get_generator()
+        nce_generator = nce_data.get_batch()
         batch = next(nce_generator)
         nce_data.stop()
 
